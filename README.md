@@ -488,7 +488,7 @@ MIT License - viz [LICENSE](LICENSE)
 
 - **Issues:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
 - **Dokumentace:** [https://www.bankid.cz/vyvojar](https://www.bankid.cz/vyvojar)
-- **Email:** info@nks-hub.com
+- **Email:** dev@nks-hub.cz
 
 ## Contributing
 
