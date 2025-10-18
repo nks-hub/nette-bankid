@@ -22,16 +22,16 @@ class BankIdProvider
 	/**
 	 * Default endpoints pro production BankID (CZ)
 	 */
-	public const CZ_AUTHORIZE_URL = 'https://oidc.bankid.cz/auth/authorize';
-	public const CZ_TOKEN_URL = 'https://oidc.bankid.cz/auth/token';
-	public const CZ_USERINFO_URL = 'https://oidc.bankid.cz/auth/userinfo';
+	public const CZ_AUTHORIZE_URL = 'https://oidc.bankid.cz/auth';
+	public const CZ_TOKEN_URL = 'https://oidc.bankid.cz/token';
+	public const CZ_USERINFO_URL = 'https://oidc.bankid.cz/userinfo';
 
 	/**
 	 * Sandbox endpoints pro testování (CZ)
 	 */
-	public const CZ_SANDBOX_AUTHORIZE_URL = 'https://oidc.sandbox.bankid.cz/auth/authorize';
-	public const CZ_SANDBOX_TOKEN_URL = 'https://oidc.sandbox.bankid.cz/auth/token';
-	public const CZ_SANDBOX_USERINFO_URL = 'https://oidc.sandbox.bankid.cz/auth/userinfo';
+	public const CZ_SANDBOX_AUTHORIZE_URL = 'https://oidc.sandbox.bankid.cz/auth';
+	public const CZ_SANDBOX_TOKEN_URL = 'https://oidc.sandbox.bankid.cz/token';
+	public const CZ_SANDBOX_USERINFO_URL = 'https://oidc.sandbox.bankid.cz/userinfo';
 
 	/**
 	 * Default scopes pro BankID
