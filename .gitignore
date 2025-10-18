@@ -1,0 +1,29 @@
+# Composer
+/vendor/
+composer.lock
+
+# PHPUnit
+.phpunit.result.cache
+/phpunit.xml
+
+# PHPStan
+phpstan.neon
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nette
+/temp/
+/log/
+
+# Tests
+/tests/temp/
+/tests/output/

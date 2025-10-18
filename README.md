@@ -1,0 +1,414 @@
+# Nette BankID Extension
+
+Nette DI Extension pro integraci BankID OAuth2/OpenID Connect autentizace.
+
+**Podporované země:** 🇨🇿 Česká republika, 🇸🇰 Slovensko (připraveno)
+
+**PHP verze:** 8.1, 8.2, 8.3, 8.4
+
+## Co je BankID?
+
+BankID je jednotné přihlašovací řešení poskytované bankami v ČR a SR. Umožňuje uživatelům ověřit svou identitu pomocí internetového bankovnictví s nejvyšší úrovní bezpečnosti (LOA3).
+
+## Instalace
+
+```bash
+composer require nks-hub/nette-bankid
+```
+
+## Konfigurace
+
+### 1. Registrace extension v `config.neon`
+
+```neon
+extensions:
+    bankid: NksHub\NetteBankId\DI\BankIdExtension
+```
+
+### 2. Konfigurace BankID credentials
+
+```neon
+bankid:
+    clientId: 'your-client-id'
+    clientSecret: 'your-client-secret'
+    redirectUri: 'https://your-domain.com/bankid/callback'
+    sandbox: false  # true pro testování, false pro production
+    country: 'cz'   # 'cz' nebo 'sk'
+```
+
+### 3. Použití v aplikaci
+
+Extension poskytuje OAuth2 provider pro BankID autentizaci. Ukládání dat do databáze je na vaší aplikaci.
+
+## Získání BankID credentials
+
+### Sandbox (testování)
+
+1. Navštivte [BankID Developer Portal](https://www.bankid.cz/vyvojar)
+2. Zaregistrujte se jako vývojář
+3. Vytvořte novou aplikaci v Sandbox
+4. Získejte `client_id` a `client_secret`
+5. Nastavte `redirect_uri` (callback URL vaší aplikace)
+
+### Production
+
+1. Projděte certifikačním procesem na BankID portálu
+2. Podepište smlouvu s poskytovatelem BankID
+3. Získejte produkční credentials
+4. Přepněte `sandbox: false` v konfiguraci
+
+## Použití
+
+### Základní OAuth2 flow
+
+```php
+<?php
+
+namespace App\Presenters;
+
+use Nette\Application\UI\Presenter;
+use NksHub\NetteBankId\OAuth2\BankIdProvider;
+use NksHub\NetteBankId\Exceptions\VerificationFailedException;
+
+class AuthPresenter extends Presenter
+{
+    public function __construct(
+        private BankIdProvider $bankIdProvider,
+    ) {
+        parent::__construct();
+    }
+
+    /**
+     * Krok 1: Redirect na BankID login
+     */
+    public function actionLogin(): void
+    {
+        // Získej authorization URL
+        $authUrl = $this->bankIdProvider->getAuthorizationUrl();
+
+        // Ulož state do session pro CSRF ochranu
+        $this->getSession('bankid')->state = $this->bankIdProvider->getState();
+
+        // Redirect na BankID
+        $this->redirectUrl($authUrl);
+    }
+
+    /**
+     * Krok 2: Callback z BankID
+     */
+    public function actionCallback(?string $code = null, ?string $state = null): void
+    {
+        if (!$code || !$state) {
+            $this->flashMessage('Autentizace selhala - chybí parametry', 'error');
+            $this->redirect('Homepage:');
+        }
+
+        try {
+            // Ověř, že se uživatel vrátil z BankID
+            $result = $this->bankIdProvider->authenticate($code, $state);
+
+            $userData = $result['user'];
+            $accessToken = $result['token'];
+
+            // Zde si můžete uložit user data do databáze nebo session
+            $this->getSession('user')->userData = $userData;
+
+            $this->flashMessage('Úspěšně přihlášeno přes BankID', 'success');
+            $this->redirect('Homepage:');
+
+        } catch (VerificationFailedException $e) {
+            $this->flashMessage('Autentizace selhala: ' . $e->getMessage(), 'error');
+            $this->redirect('Homepage:');
+        }
+    }
+}
+```
+
+### Získání user dat po autentizaci
+
+Po úspěšné autentizaci získáte user data z BankID:
+
+```php
+$result = $this->bankIdProvider->authenticate($code, $state);
+$userData = $result['user'];
+$accessToken = $result['token'];
+
+// Dostupné user data:
+$userData['sub'];           // BankID user ID (unique identifier)
+$userData['email'];         // Email
+$userData['given_name'];    // Křestní jméno
+$userData['family_name'];   // Příjmení
+$userData['name'];          // Celé jméno
+$userData['birthdate'];     // Datum narození
+$userData['phone_number'];  // Telefon
+$userData['acr'];           // Level of Assurance (loa1, loa2, loa3)
+$userData['address'];       // Adresa (object)
+
+// Access token info:
+$accessToken->getToken();         // Access token string
+$accessToken->getExpires();       // Expiration timestamp
+$accessToken->getRefreshToken();  // Refresh token (if available)
+```
+
+### Příklad: Ukládání do vlastní databáze
+
+Extension poskytuje pouze OAuth2 autentizaci. Ukládání dat je na vaší aplikaci.
+
+**Příklad Doctrine entity:**
+
+```php
+<?php
+
+namespace App\Entity;
+
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Entity]
+#[ORM\Table(name: 'bankid_verifications')]
+class BankIdVerification
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: 'integer')]
+    private ?int $id = null;
+
+    #[ORM\Column(type: 'string', unique: true)]
+    private string $userId;  // BankID sub
+
+    #[ORM\Column(type: 'string', nullable: true)]
+    private ?string $email = null;
+
+    #[ORM\Column(type: 'string', nullable: true)]
+    private ?string $fullName = null;
+
+    #[ORM\Column(type: 'datetime_immutable')]
+    private \DateTimeImmutable $verifiedAt;
+
+    // ... další properties podle potřeby
+}
+```
+
+**Příklad service pro uložení:**
+
+```php
+<?php
+
+namespace App\Service;
+
+use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\BankIdVerification;
+
+class BankIdService
+{
+    public function __construct(
+        private EntityManagerInterface $em,
+    ) {
+    }
+
+    public function saveVerification(array $userData): BankIdVerification
+    {
+        $verification = new BankIdVerification();
+        $verification->setUserId($userData['sub']);
+        $verification->setEmail($userData['email'] ?? null);
+        $verification->setFullName($userData['name'] ?? null);
+        $verification->setVerifiedAt(new \DateTimeImmutable());
+
+        $this->em->persist($verification);
+        $this->em->flush();
+
+        return $verification;
+    }
+}
+```
+
+## Konfigurace - všechny parametry
+
+```neon
+bankid:
+    # Povinné parametry
+    clientId: 'your-client-id'
+    clientSecret: 'your-client-secret'
+    redirectUri: 'https://your-domain.com/bankid/callback'
+
+    # Volitelné parametry
+    sandbox: false              # true = sandbox, false = production
+    country: 'cz'              # 'cz' nebo 'sk'
+
+    # Custom endpoints (pokud nechcete použít defaultní)
+    authorizeUrl: null         # null = použije se default podle sandbox/country
+    tokenUrl: null
+    userinfoUrl: null
+```
+
+## Sandbox vs Production režim
+
+### Sandbox (testování)
+
+```neon
+bankid:
+    sandbox: true
+    clientId: 'sandbox-client-id'
+    clientSecret: 'sandbox-secret'
+    redirectUri: 'http://localhost:8080/bankid/callback'
+```
+
+**Testovací uživatelé:** BankID poskytuje testovací účty v sandbox režimu - viz dokumentace na [bankid.cz/vyvojar](https://www.bankid.cz/vyvojar)
+
+### Production
+
+```neon
+bankid:
+    sandbox: false
+    clientId: 'production-client-id'
+    clientSecret: 'production-secret'
+    redirectUri: 'https://your-domain.com/bankid/callback'
+```
+
+⚠️ **DŮLEŽITÉ:** Pro production musíte projít certifikací a získat produkční credentials.
+
+## Security best practices
+
+### 1. CSRF ochrana
+
+Extension automaticky používá state token pro CSRF ochranu:
+
+```php
+// Extension generuje a validuje state automaticky
+$result = $this->bankIdProvider->authenticate($code, $state);
+```
+
+### 2. Šifrování access tokenů v databázi
+
+Pro maximální bezpečnost doporučujeme šifrovat `access_token` a `refresh_token` v databázi:
+
+```php
+// Použijte Doctrine encrypted column type nebo vlastní listener
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Column(type: 'encrypted_text')]
+private string $accessToken;
+```
+
+### 3. HTTPS only
+
+BankID **VYŽADUJE** HTTPS pro callback URL v production režimu.
+
+```neon
+bankid:
+    redirectUri: 'https://your-domain.com/bankid/callback'  # HTTPS!
+```
+
+### 4. Token expiration
+
+Access tokeny mají omezenou platnost. Zkontrolujte platnost:
+
+```php
+if (!$verification->isTokenValid()) {
+    // Token vypršel, vyžádejte novou autentizaci
+}
+```
+
+### 5. GDPR compliance
+
+Pravidelně odstraňujte staré verifikace:
+
+```php
+// Například v cron jobu
+$repository->deleteExpired(new \DateTimeImmutable('-90 days'));
+```
+
+## Level of Assurance (LOA)
+
+BankID podporuje různé úrovně ověření:
+
+- **LOA1** - Nízká (základní identifikace)
+- **LOA2** - Střední (ověření dokumentem)
+- **LOA3** - Vysoká (bankovní identita) ← **DEFAULT**
+
+Extension defaultně požaduje LOA3 (nejvyšší úroveň).
+
+```php
+// Získej LOA z user dat
+$loa = $verification->getAssuranceLevel(); // 'loa3'
+```
+
+## Troubleshooting
+
+### Chyba: "Invalid redirect_uri"
+
+**Příčina:** Redirect URI v konfiguraci neodpovídá URI registrované v BankID portálu.
+
+**Řešení:** Zkontrolujte, že `redirectUri` v `config.neon` přesně odpovídá URI v BankID developer portálu (včetně http/https, portu, path).
+
+### Chyba: "State token mismatch"
+
+**Příčina:** CSRF token neodpovídá (možný útok nebo problém se session).
+
+**Řešení:**
+- Zkontrolujte, že máte správně nakonfigurované sessions v Nette
+- Ujistěte se, že cookies fungují (session se ukládá do cookie)
+- Zkontrolujte, že uživatel nebyl přesměrován přes jiný proxy/load balancer
+
+### Sandbox mode nefunguje
+
+**Příčina:** Sandbox má jiné endpoints než production.
+
+**Řešení:** Ujistěte se, že máte `sandbox: true` v konfiguraci:
+
+```neon
+bankid:
+    sandbox: true  # ← DŮLEŽITÉ
+```
+
+### Doctrine entity nejsou namapované
+
+**Příčina:** Extension automaticky registruje mapping pouze pokud je Doctrine ORM dostupná.
+
+**Řešení:** Ujistěte se, že máte nainstalovanou a nakonfigurovanou `nettrine/orm`:
+
+```bash
+composer require nettrine/orm
+composer require nettrine/dbal
+```
+
+### Access token vypršel
+
+**Příčina:** Access tokeny mají omezenou platnost (typicky 1 hodina).
+
+**Řešení:** Použijte refresh token nebo vyžádejte novou autentizaci:
+
+```php
+if (!$verification->isTokenValid()) {
+    // Vyžádejte nové přihlášení
+    $this->redirect('Auth:login');
+}
+```
+
+## Changelog
+
+Viz [CHANGELOG.md](CHANGELOG.md)
+
+## Licence
+
+MIT License - viz [LICENSE](LICENSE)
+
+## Podpora
+
+- **Issues:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
+- **Dokumentace:** [https://www.bankid.cz/vyvojar](https://www.bankid.cz/vyvojar)
+- **Email:** info@nks-hub.com
+
+## Contributing
+
+Pull requesty jsou vítány! Pro větší změny prosím nejprve otevřete issue.
+
+## Autoři
+
+- **NKS Hub** - *Initial work*
+
+## Related Links
+
+- [BankID Developer Portal](https://www.bankid.cz/vyvojar)
+- [Nette Framework](https://nette.org)
+- [Doctrine ORM](https://www.doctrine-project.org/projects/orm.html)
+- [OAuth2 Client Library](https://github.com/thephpleague/oauth2-client)

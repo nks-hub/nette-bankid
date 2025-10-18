@@ -1,0 +1,47 @@
+{
+  "name": "nks-hub/nette-bankid",
+  "description": "Nette extension for BankID OAuth2/OIDC authentication (Czech/Slovak)",
+  "type": "library",
+  "license": "MIT",
+  "keywords": [
+    "nette",
+    "bankid",
+    "oauth2",
+    "oidc",
+    "authentication",
+    "czech",
+    "slovak",
+    "verification"
+  ],
+  "authors": [
+    {
+      "name": "NKS Hub",
+      "email": "info@nks-hub.com"
+    }
+  ],
+  "require": {
+    "php": ">=8.1 <8.5",
+    "nette/di": "^3.0 || ^4.0",
+    "nette/security": "^3.0 || ^4.0",
+    "nette/http": "^3.0 || ^4.0",
+    "nette/utils": "^3.0 || ^4.0",
+    "league/oauth2-client": "^2.7"
+  },
+  "require-dev": {
+    "nette/tester": "^2.5",
+    "phpstan/phpstan": "^1.10",
+    "nette/bootstrap": "^3.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "NksHub\\NetteBankId\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "NksHub\\NetteBankId\\Tests\\": "tests/"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
