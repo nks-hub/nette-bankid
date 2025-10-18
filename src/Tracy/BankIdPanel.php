@@ -41,14 +41,13 @@ class BankIdPanel implements IBarPanel
 	public function getTab(): string
 	{
 		$count = count($this->logs);
-		$icon = $this->sandbox ? '🟡' : '🟢';
 
 		return <<<HTML
 <span title="BankID Authentication">
 	<svg viewBox="0 0 2048 2048" style="vertical-align: bottom; width:1.23em; height:1.4em">
 		<path fill="#4285f4" d="M1024 256c424 0 768 344 768 768s-344 768-768 768-768-344-768-768 344-768 768-768zm0 128c353 0 640 287 640 640s-287 640-640 640-640-287-640-640 287-640 640-640zm-64 256v512l384 0v-128h-256v-384h-128z"/>
 	</svg>
-	<span class="tracy-label">{$icon} BankID ({$count})</span>
+	<span class="tracy-label">BankID ({$count})</span>
 </span>
 HTML;
 	}
