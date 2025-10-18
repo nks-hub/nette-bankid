@@ -47,7 +47,7 @@ Extension poskytuje OAuth2 provider pro BankID autentizaci. Ukládání dat do d
 
 ### Sandbox (testování)
 
-1. Navštivte [BankID Developer Portal](https://www.bankid.cz/vyvojar)
+1. Navštivte [BankID Developer Portal](https://developer.bankid.cz/)
 2. Zaregistrujte se jako vývojář
 3. Vytvořte novou aplikaci v Sandbox
 4. Získejte `client_id` a `client_secret`
@@ -344,7 +344,7 @@ bankid:
     redirectUri: 'http://localhost:8080/bankid/callback'
 ```
 
-**Testovací uživatelé:** BankID poskytuje testovací účty v sandbox režimu - viz dokumentace na [bankid.cz/vyvojar](https://www.bankid.cz/vyvojar)
+**Testovací uživatelé:** BankID poskytuje testovací účty v sandbox režimu - viz dokumentace na [developer.bankid.cz](https://developer.bankid.cz/docs)
 
 ### Production
 
@@ -487,7 +487,7 @@ MIT License - viz [LICENSE](LICENSE)
 ## Podpora
 
 - **Issues:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
-- **Dokumentace:** [https://www.bankid.cz/vyvojar](https://www.bankid.cz/vyvojar)
+- **Dokumentace:** [https://developer.bankid.cz/docs](https://developer.bankid.cz/docs)
 - **Email:** dev@nks-hub.cz
 
 ## Contributing
@@ -500,7 +500,7 @@ Pull requesty jsou vítány! Pro větší změny prosím nejprve otevřete issue
 
 ## Related Links
 
-- [BankID Developer Portal](https://www.bankid.cz/vyvojar)
+- [BankID Developer Portal](https://developer.bankid.cz/)
 - [Nette Framework](https://nette.org)
 - [Doctrine ORM](https://www.doctrine-project.org/projects/orm.html)
 - [OAuth2 Client Library](https://github.com/thephpleague/oauth2-client)
