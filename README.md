@@ -2,13 +2,15 @@
 
 Nette DI Extension pro integraci BankID OAuth2/OpenID Connect autentizace.
 
-**Podporované země:** 🇨🇿 Česká republika, 🇸🇰 Slovensko (připraveno)
+**Podporované země:** 🇨🇿 Česká republika
 
 **PHP verze:** 8.1, 8.2, 8.3, 8.4
 
+> ℹ️ **Poznámka:** Extension je připraven na budoucí podporu slovenského BankID, pokud bude systém spuštěn. Zatím však Slovensko nemá vlastní BankID implementaci. Kód umožňuje konfiguraci `country: 'sk'` s vlastními endpoints pro případné budoucí použití.
+
 ## Co je BankID?
 
-BankID je jednotné přihlašovací řešení poskytované bankami v ČR a SR. Umožňuje uživatelům ověřit svou identitu pomocí internetového bankovnictví s nejvyšší úrovní bezpečnosti (LOA3).
+BankID je jednotné přihlašovací řešení poskytované bankami v České republice. Umožňuje uživatelům ověřit svou identitu pomocí internetového bankovnictví s nejvyšší úrovní bezpečnosti (LOA3).
 
 ## Instalace
 
@@ -33,7 +35,7 @@ bankid:
     clientSecret: 'your-client-secret'
     redirectUri: 'https://your-domain.com/bankid/callback'
     sandbox: false  # true pro testování, false pro production
-    country: 'cz'   # 'cz' nebo 'sk'
+    country: 'cz'   # pouze 'cz' (SK zatím není implementováno)
     debug: false    # true = Tracy debug panel + logging
 ```
 
@@ -320,11 +322,12 @@ bankid:
 
     # Volitelné parametry
     sandbox: false              # true = sandbox, false = production
-    country: 'cz'              # 'cz' nebo 'sk'
+    country: 'cz'              # pouze 'cz' podporováno (SK v budoucnu)
     debug: false               # true = Tracy panel + file logging
 
-    # Custom endpoints (pokud nechcete použít defaultní)
-    authorizeUrl: null         # null = použije se default podle sandbox/country
+    # Custom endpoints (pokud nechcete použít defaultní CZ endpoints)
+    # Pro budoucí SK BankID můžete použít custom URLs, až budou dostupné
+    authorizeUrl: null         # null = použije se CZ default podle sandbox režimu
     tokenUrl: null
     userinfoUrl: null
 ```
