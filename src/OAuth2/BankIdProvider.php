@@ -8,6 +8,7 @@ use League\OAuth2\Client\Provider\GenericProvider;
 use League\OAuth2\Client\Token\AccessToken;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use NksHub\NetteBankId\Exceptions\VerificationFailedException;
+use NksHub\NetteBankId\Tracy\BankIdPanel;
 
 /**
  * BankID OAuth2/OpenID Connect Provider
@@ -18,6 +19,7 @@ use NksHub\NetteBankId\Exceptions\VerificationFailedException;
 class BankIdProvider
 {
 	private GenericProvider $provider;
+	private ?BankIdPanel $panel = null;
 
 	/**
 	 * Default endpoints pro production BankID (CZ)
@@ -53,7 +55,9 @@ class BankIdProvider
 		private readonly string $userinfoUrl,
 		private readonly bool $sandbox = false,
 		private readonly bool $debug = false,
+		?BankIdPanel $panel = null,
 	) {
+		$this->panel = $panel;
 		$this->initializeProvider();
 	}
 
@@ -87,11 +91,16 @@ class BankIdProvider
 			return;
 		}
 
+		// Log do Tracy panelu (živý debug bar)
+		if ($this->panel !== null) {
+			$this->panel->log($message, $context);
+		}
+
+		// Log do souboru (persistentní log)
 		$logMessage = $message;
 		if (!empty($context)) {
 			$logMessage .= "\n" . json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		}
-
 		\Tracy\Debugger::log($logMessage, 'bankid');
 	}
 

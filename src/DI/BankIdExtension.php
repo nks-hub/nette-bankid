@@ -8,6 +8,7 @@ use Nette\DI\CompilerExtension;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
 use NksHub\NetteBankId\OAuth2\BankIdProvider;
+use NksHub\NetteBankId\Tracy\BankIdPanel;
 
 /**
  * Nette DI Extension pro BankID autentizaci
@@ -63,6 +64,17 @@ class BankIdExtension extends CompilerExtension
 			$config->userinfoUrl
 		);
 
+		// Registruj Tracy panel (pokud je debug zapnutý)
+		$panel = null;
+		if ($config->debug) {
+			$panel = $builder->addDefinition($this->prefix('panel'))
+				->setFactory(BankIdPanel::class, [
+					'sandbox' => $config->sandbox,
+					'redirectUri' => $config->redirectUri,
+				])
+				->setAutowired(false);
+		}
+
 		// Registruj BankIdProvider jako službu
 		$builder->addDefinition($this->prefix('provider'))
 			->setFactory(BankIdProvider::class, [
@@ -74,8 +86,23 @@ class BankIdExtension extends CompilerExtension
 				'userinfoUrl' => $urls['userinfo'],
 				'sandbox' => $config->sandbox,
 				'debug' => $config->debug,
+				'panel' => $panel,
 			])
 			->setAutowired(true);
+	}
+
+	/**
+	 * Po kompilaci zaregistruj Tracy panel do debug baru
+	 */
+	public function beforeCompile(): void
+	{
+		$builder = $this->getContainerBuilder();
+		$config = $this->getConfig();
+
+		if ($config->debug && $builder->hasDefinition($this->prefix('panel'))) {
+			$builder->getDefinition('tracy.bar')
+				->addSetup('addPanel', [$builder->getDefinition($this->prefix('panel'))]);
+		}
 	}
 
 	/**
@@ -123,20 +150,4 @@ class BankIdExtension extends CompilerExtension
 		);
 	}
 
-	/**
-	 * Validuje konfiguraci při startu
-	 */
-	public function afterCompile(\Nette\PhpGenerator\ClassType $class): void
-	{
-		$initialize = $class->getMethod('initialize');
-
-		// Přidej validaci, že jsou všechny potřebné parametry nastaveny
-		$initialize->addBody(
-			'// Validate BankID configuration' . "\n" .
-			'if (!$this->getService(?)->getClientId()) {' . "\n" .
-			'	throw new \RuntimeException(\'BankID clientId is required\');' . "\n" .
-			'}',
-			[$this->prefix('provider')]
-		);
-	}
 }
