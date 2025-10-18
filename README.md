@@ -34,6 +34,7 @@ bankid:
     redirectUri: 'https://your-domain.com/bankid/callback'
     sandbox: false  # true pro testování, false pro production
     country: 'cz'   # 'cz' nebo 'sk'
+    debug: false    # true = Tracy debug panel + logging
 ```
 
 ### 3. Použití v aplikaci
@@ -221,6 +222,93 @@ class BankIdService
 }
 ```
 
+## Debugging a Tracy Panel
+
+Extension podporuje Tracy debug panel pro živé sledování BankID autentizace.
+
+### Aktivace debug režimu
+
+```neon
+bankid:
+    debug: true  # Aktivuje Tracy panel a logging
+```
+
+### Tracy Debug Panel
+
+Když je `debug: true`, uvidíte v Tracy baru panel **BankID** s následujícími informacemi:
+
+1. **Základní info:**
+   - Mode: Sandbox / Production
+   - Redirect URI
+   - Počet events
+
+2. **Authenticated User Data** (po úspěšné autentizaci):
+   - sub (BankID user ID)
+   - email
+   - name, given_name, family_name
+   - birthdate
+   - phone_number
+   - acr (Level of Assurance)
+   - další dostupná pole
+
+3. **Authentication Flow** (živý log):
+   - Timing každého kroku (ms)
+   - Event popis (authenticate started, token retrieved, user info retrieved)
+   - Context data pro každý event
+
+### File Logging
+
+Kromě Tracy panelu se všechny debug info logují do souboru:
+
+```
+log/bankid.log
+```
+
+Formát logu:
+```
+[timestamp] Message
+{
+    "context": {...}
+}
+```
+
+### Příklad Tracy output
+
+```
+BankID (3)
+├─ Mode: Sandbox
+├─ Redirect URI: https://prekupnici.loc/bankid/callback
+└─ Logs: 3 events
+
+Authenticated User Data:
+├─ sub: 1234567890
+├─ email: user@example.com
+├─ name: Jan Novák
+├─ given_name: Jan
+├─ family_name: Novák
+├─ birthdate: 1990-01-01
+└─ acr: loa3
+
+Authentication Flow:
+├─ +0.00ms   BankID authenticate started
+│            code_length: 24, state: abc123...
+├─ +125.50ms Access token retrieved
+│            expires: 1234567890, has_refresh_token: false
+└─ +234.12ms User info retrieved
+             sub: 1234567890, email: user@example.com, acr: loa3
+```
+
+### Vypnutí debug režimu v production
+
+⚠️ **DŮLEŽITÉ:** Vždy vypněte debug režim v production!
+
+```neon
+# Production config
+bankid:
+    debug: false  # ← Vypnuto pro production
+    sandbox: false
+```
+
 ## Konfigurace - všechny parametry
 
 ```neon
@@ -233,6 +321,7 @@ bankid:
     # Volitelné parametry
     sandbox: false              # true = sandbox, false = production
     country: 'cz'              # 'cz' nebo 'sk'
+    debug: false               # true = Tracy panel + file logging
 
     # Custom endpoints (pokud nechcete použít defaultní)
     authorizeUrl: null         # null = použije se default podle sandbox/country

@@ -222,6 +222,11 @@ class BankIdProvider
 			'acr' => $user['acr'] ?? null,
 		]);
 
+		// Ulož user data do Tracy panelu pro zobrazení
+		if ($this->panel !== null) {
+			$this->panel->setUserData($user);
+		}
+
 		return [
 			'user' => $user,
 			'token' => $token
