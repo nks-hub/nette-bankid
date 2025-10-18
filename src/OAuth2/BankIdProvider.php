@@ -52,6 +52,7 @@ class BankIdProvider
 		private readonly string $tokenUrl,
 		private readonly string $userinfoUrl,
 		private readonly bool $sandbox = false,
+		private readonly bool $debug = false,
 	) {
 		$this->initializeProvider();
 	}
@@ -67,6 +68,31 @@ class BankIdProvider
 			'urlResourceOwnerDetails' => $this->userinfoUrl,
 			'scopes' => implode(' ', self::DEFAULT_SCOPES),
 		]);
+
+		if ($this->debug) {
+			$this->log('BankIdProvider initialized', [
+				'sandbox' => $this->sandbox,
+				'redirectUri' => $this->redirectUri,
+				'authorizeUrl' => $this->authorizeUrl,
+			]);
+		}
+	}
+
+	/**
+	 * Debug logging pomocí Tracy (pokud je debug zapnutý)
+	 */
+	private function log(string $message, array $context = []): void
+	{
+		if (!$this->debug) {
+			return;
+		}
+
+		$logMessage = $message;
+		if (!empty($context)) {
+			$logMessage .= "\n" . json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		}
+
+		\Tracy\Debugger::log($logMessage, 'bankid');
 	}
 
 	/**
@@ -99,22 +125,6 @@ class BankIdProvider
 		return $this->provider->getState();
 	}
 
-	/**
-	 * Validuje state token proti původnímu
-	 *
-	 * @param string $state State token z callback URL
-	 * @throws VerificationFailedException pokud state neodpovídá
-	 */
-	public function validateState(string $state): void
-	{
-		$expectedState = $this->provider->getState();
-
-		if ($state !== $expectedState) {
-			throw new VerificationFailedException(
-				'State token mismatch - možný CSRF útok'
-			);
-		}
-	}
 
 	/**
 	 * Vymění authorization code za access token
@@ -172,8 +182,11 @@ class BankIdProvider
 	/**
 	 * Kompletní OAuth2 flow - získá user data z authorization code
 	 *
+	 * IMPORTANT: State validation MUST be done in your application before calling this method!
+	 * This package doesn't have access to session storage where state token is saved.
+	 *
 	 * @param string $code Authorization code z callback URL
-	 * @param string $state State token pro CSRF validaci
+	 * @param string $state State token (pro informaci, validace musí být v aplikaci)
 	 * @return array{
 	 *   user: array,
 	 *   token: AccessToken
@@ -182,9 +195,23 @@ class BankIdProvider
 	 */
 	public function authenticate(string $code, string $state): array
 	{
-		$this->validateState($state);
+		$this->log('BankID authenticate started', [
+			'code_length' => strlen($code),
+			'state' => $state,
+		]);
+
 		$token = $this->getAccessToken($code);
+		$this->log('Access token retrieved', [
+			'expires' => $token->getExpires(),
+			'has_refresh_token' => $token->getRefreshToken() !== null,
+		]);
+
 		$user = $this->getUserInfo($token);
+		$this->log('User info retrieved', [
+			'sub' => $user['sub'] ?? null,
+			'email' => $user['email'] ?? null,
+			'acr' => $user['acr'] ?? null,
+		]);
 
 		return [
 			'user' => $user,

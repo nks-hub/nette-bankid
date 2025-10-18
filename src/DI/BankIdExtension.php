@@ -42,6 +42,7 @@ class BankIdExtension extends CompilerExtension
 			'userinfoUrl' => Expect::string()->nullable(),
 			'sandbox' => Expect::bool(false),
 			'country' => Expect::anyOf('cz', 'sk')->default('cz'),
+			'debug' => Expect::bool(false),
 		]);
 	}
 
@@ -72,6 +73,7 @@ class BankIdExtension extends CompilerExtension
 				'tokenUrl' => $urls['token'],
 				'userinfoUrl' => $urls['userinfo'],
 				'sandbox' => $config->sandbox,
+				'debug' => $config->debug,
 			])
 			->setAutowired(true);
 	}
