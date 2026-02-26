@@ -1,3 +1,8 @@
+[![Latest Stable Version](https://poser.pugx.org/nks-hub/nette-bankid/v)](https://packagist.org/packages/nks-hub/nette-bankid)
+[![Total Downloads](https://poser.pugx.org/nks-hub/nette-bankid/downloads)](https://packagist.org/packages/nks-hub/nette-bankid)
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)](https://php.net/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 # Nette BankID Extension
 
 Nette DI Extension pro integraci BankID OAuth2/OpenID Connect autentizace.
@@ -476,31 +481,28 @@ if (!$verification->isTokenValid()) {
 }
 ```
 
-## Changelog
-
-Viz [CHANGELOG.md](CHANGELOG.md)
-
-## Licence
-
-MIT License - viz [LICENSE](LICENSE)
-
-## Podpora
-
-- **Issues:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
-- **Dokumentace:** [https://developer.bankid.cz/docs](https://developer.bankid.cz/docs)
-- **Email:** dev@nks-hub.cz
-
 ## Contributing
 
 Pull requesty jsou vítány! Pro větší změny prosím nejprve otevřete issue.
 
-## Autoři
+1. Fork repozitáře
+2. Vytvořte feature branch (`git checkout -b feature/nova-funkce`)
+3. Commit změn (`git commit -m 'feat: popis'`)
+4. Push branch (`git push origin feature/nova-funkce`)
+5. Otevřete Pull Request
 
-- **NKS Hub** - *Initial work*
+## Podpora
 
-## Related Links
+- 📧 **Email:** dev@nks-hub.cz
+- 🐛 **Bug reports:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
+- 📖 **BankID docs:** [developer.bankid.cz](https://developer.bankid.cz/docs)
 
-- [BankID Developer Portal](https://developer.bankid.cz/)
-- [Nette Framework](https://nette.org)
-- [Doctrine ORM](https://www.doctrine-project.org/projects/orm.html)
-- [OAuth2 Client Library](https://github.com/thephpleague/oauth2-client)
+## Licence
+
+MIT License — viz [LICENSE](LICENSE)
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/nks-hub">NKS Hub</a>
+</p>
