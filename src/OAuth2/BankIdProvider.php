@@ -46,9 +46,12 @@ class BankIdProvider
 		'profile.phonenumber'
 	];
 
+	/** Last generated nonce value, available via getNonce() after calling getAuthorizationUrl() */
+	private ?string $lastNonce = null;
+
 	public function __construct(
 		private readonly string $clientId,
-		private readonly string $clientSecret,
+		#[\SensitiveParameter] private readonly string $clientSecret,
 		private readonly string $redirectUri,
 		private readonly string $authorizeUrl,
 		private readonly string $tokenUrl,
@@ -71,6 +74,7 @@ class BankIdProvider
 			'urlAccessToken' => $this->tokenUrl,
 			'urlResourceOwnerDetails' => $this->userinfoUrl,
 			'scopes' => implode(' ', self::DEFAULT_SCOPES),
+			'pkceMethod' => 'S256',
 		]);
 
 		if ($this->debug) {
@@ -105,23 +109,41 @@ class BankIdProvider
 	}
 
 	/**
-	 * Získá authorization URL pro redirect na BankID login
+	 * Returns the authorization URL for redirecting the user to BankID login.
 	 *
-	 * @param array<string, mixed> $options Dodatečné parametry (scope, nonce, atd.)
+	 * The nonce is generated internally and stored. Retrieve it via getNonce()
+	 * immediately after this call and persist it in the session for later
+	 * validation in authenticate().
+	 *
+	 * @param array<string, mixed> $options Additional parameters (scope, nonce, etc.)
 	 * @return string Authorization URL
 	 */
 	public function getAuthorizationUrl(array $options = []): string
 	{
-		// Generate nonce for additional security (OIDC requirement)
-		$nonce = bin2hex(random_bytes(16));
+		// Generate a cryptographically random nonce (OIDC replay-attack prevention).
+		// The caller MUST store this value in the session and pass it to authenticate().
+		$this->lastNonce = bin2hex(random_bytes(32));
 
 		return $this->provider->getAuthorizationUrl(array_merge([
 			'scope' => self::DEFAULT_SCOPES,
-			'nonce' => $nonce,
+			'nonce' => $this->lastNonce,
 			'prompt' => 'login',
 			'display' => 'page',
-			'acr_values' => 'loa3' // Level of Assurance 3 (highest)
+			'acr_values' => 'loa3', // Level of Assurance 3 (highest)
 		], $options));
+	}
+
+	/**
+	 * Returns the nonce generated during the last getAuthorizationUrl() call.
+	 *
+	 * Store this value in the session immediately after calling getAuthorizationUrl()
+	 * and pass it to authenticate() as $expectedNonce.
+	 *
+	 * @return string|null Nonce value, or null if getAuthorizationUrl() has not been called yet
+	 */
+	public function getNonce(): ?string
+	{
+		return $this->lastNonce;
 	}
 
 	/**
@@ -136,17 +158,17 @@ class BankIdProvider
 
 
 	/**
-	 * Vymění authorization code za access token
+	 * Exchanges the authorization code for an access token.
 	 *
-	 * @param string $code Authorization code z callback URL
-	 * @return AccessToken Access token pro získání user info
-	 * @throws VerificationFailedException pokud výměna selže
+	 * @param string $code Authorization code from the callback URL
+	 * @return AccessToken Access token for fetching user info
+	 * @throws VerificationFailedException if the exchange fails
 	 */
-	public function getAccessToken(string $code): AccessToken
+	public function getAccessToken(#[\SensitiveParameter] string $code): AccessToken
 	{
 		try {
 			return $this->provider->getAccessToken('authorization_code', [
-				'code' => $code
+				'code' => $code,
 			]);
 		} catch (IdentityProviderException $e) {
 			throw new VerificationFailedException(
@@ -189,24 +211,36 @@ class BankIdProvider
 	}
 
 	/**
-	 * Kompletní OAuth2 flow - získá user data z authorization code
+	 * Completes the OAuth2/OIDC flow: validates state + nonce, exchanges the
+	 * authorization code for tokens, and returns verified user data.
 	 *
-	 * IMPORTANT: State validation MUST be done in your application before calling this method!
-	 * This package doesn't have access to session storage where state token is saved.
+	 * State and nonce MUST have been stored in the session when getAuthorizationUrl()
+	 * was called. Pass them here so they can be verified before any token exchange.
 	 *
-	 * @param string $code Authorization code z callback URL
-	 * @param string $state State token (pro informaci, validace musí být v aplikaci)
-	 * @return array{
-	 *   user: array,
-	 *   token: AccessToken
-	 * } User data a access token
-	 * @throws VerificationFailedException pokud autentizace selže
+	 * @param string      $code          Authorization code from the callback URL
+	 * @param string      $receivedState State value received in the callback query string
+	 * @param string      $expectedState State value stored in the session (CSRF token)
+	 * @param string|null $expectedNonce Nonce stored in the session; pass null to skip
+	 *                                   nonce validation (not recommended)
+	 * @return array{user: array, token: AccessToken} Verified user data and access token
+	 * @throws VerificationFailedException if state/nonce validation fails or auth errors occur
 	 */
-	public function authenticate(string $code, string $state): array
-	{
+	public function authenticate(
+		#[\SensitiveParameter] string $code,
+		#[\SensitiveParameter] string $receivedState,
+		#[\SensitiveParameter] string $expectedState,
+		#[\SensitiveParameter] ?string $expectedNonce = null,
+	): array {
+		// Validate CSRF state token using constant-time comparison to prevent
+		// timing-based state oracle attacks.
+		if (!hash_equals($expectedState, $receivedState)) {
+			throw new VerificationFailedException(
+				'State token mismatch. Possible CSRF attack.'
+			);
+		}
+
 		$this->log('BankID authenticate started', [
 			'code_length' => strlen($code),
-			'state' => $state,
 		]);
 
 		$token = $this->getAccessToken($code);
@@ -218,18 +252,33 @@ class BankIdProvider
 		$user = $this->getUserInfo($token);
 		$this->log('User info retrieved', [
 			'sub' => $user['sub'] ?? null,
-			'email' => $user['email'] ?? null,
 			'acr' => $user['acr'] ?? null,
 		]);
 
-		// Ulož user data do Tracy panelu pro zobrazení
+		// Validate nonce from the ID token against the session-stored value.
+		// This prevents ID token replay attacks across different authorization flows.
+		if ($expectedNonce !== null) {
+			$idTokenNonce = $user['nonce'] ?? null;
+			if ($idTokenNonce === null) {
+				throw new VerificationFailedException(
+					'Nonce claim missing from ID token response.'
+				);
+			}
+			if (!hash_equals($expectedNonce, (string) $idTokenNonce)) {
+				throw new VerificationFailedException(
+					'Nonce mismatch. Possible ID token replay attack.'
+				);
+			}
+		}
+
+		// Store user data in Tracy panel for debugging
 		if ($this->panel !== null) {
 			$this->panel->setUserData($user);
 		}
 
 		return [
 			'user' => $user,
-			'token' => $token
+			'token' => $token,
 		];
 	}
 
