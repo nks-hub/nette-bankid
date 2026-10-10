@@ -1,73 +1,136 @@
+# Nette BankID
+
 [![Latest Stable Version](https://poser.pugx.org/nks-hub/nette-bankid/v)](https://packagist.org/packages/nks-hub/nette-bankid)
 [![Total Downloads](https://poser.pugx.org/nks-hub/nette-bankid/downloads)](https://packagist.org/packages/nks-hub/nette-bankid)
-[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-8892BF.svg)](https://php.net/)
+[![PHP Version](https://img.shields.io/badge/php-8.1%20--%208.4-8892BF.svg)](https://php.net/)
+[![Nette Version](https://img.shields.io/badge/nette-%5E3.0%20%7C%7C%20%5E4.0-blue.svg)](https://nette.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-# Nette BankID Extension
+Nette DI extension for BankID OAuth2/OpenID Connect authentication.
 
-Nette DI Extension pro integraci BankID OAuth2/OpenID Connect autentizace.
+**Supported countries:** 🇨🇿 Czech Republic
 
-**Podporované země:** 🇨🇿 Česká republika
+**PHP versions:** 8.1, 8.2, 8.3, 8.4
 
-**PHP verze:** 8.1, 8.2, 8.3, 8.4
+> ℹ️ **Note:** The extension is prepared for future support of a Slovak BankID, should such a system launch. Slovakia does not have its own BankID implementation yet. The code allows configuring `country: 'sk'` with custom endpoints for possible future use.
 
-> ℹ️ **Poznámka:** Extension je připraven na budoucí podporu slovenského BankID, pokud bude systém spuštěn. Zatím však Slovensko nemá vlastní BankID implementaci. Kód umožňuje konfiguraci `country: 'sk'` s vlastními endpoints pro případné budoucí použití.
+**What is BankID?** BankID is a unified sign-in solution provided by banks in the Czech Republic. It lets users verify their identity through their internet banking with the highest level of assurance (LOA3).
 
-## Co je BankID?
+## Features
 
-BankID je jednotné přihlašovací řešení poskytované bankami v České republice. Umožňuje uživatelům ověřit svou identitu pomocí internetového bankovnictví s nejvyšší úrovní bezpečnosti (LOA3).
+- 🏦 **BankID OAuth2/OIDC** - Identity verification via internet banking, LOA3 requested by default
+- 🛡️ **Security built in** - State token (CSRF), PKCE (S256) and nonce for replay protection
+- 🧪 **Sandbox + production** - Switch with a single `sandbox` flag
+- 👤 **User data** - `sub`, email, names, birthdate, phone, address and level of assurance
+- 🐞 **Tracy panel** - Live authentication flow with per-step timing, plus file logging
+- 🌍 **Custom endpoints** - Override authorize/token/userinfo URLs (ready for a future SK BankID)
+- 🎯 **Nette integration** - DI extension, storage left fully to your application
 
-## Instalace
+## Requirements
+
+- PHP 8.1 – 8.4
+- Nette 3.0+ / 4.0+ (`nette/di`, `nette/security`, `nette/http`, `nette/utils`)
+- league/oauth2-client 2.7+
+- BankID developer account ([developer.bankid.cz](https://developer.bankid.cz/))
+
+## Installation
 
 ```bash
 composer require nks-hub/nette-bankid
 ```
 
-## Konfigurace
+## Configuration
 
-### 1. Registrace extension v `config.neon`
+### 1. Register the extension in `config.neon`
 
 ```neon
 extensions:
     bankid: NksHub\NetteBankId\DI\BankIdExtension
 ```
 
-### 2. Konfigurace BankID credentials
+### 2. Configure BankID credentials
 
 ```neon
 bankid:
     clientId: 'your-client-id'
     clientSecret: 'your-client-secret'
     redirectUri: 'https://your-domain.com/bankid/callback'
-    sandbox: false  # true pro testování, false pro production
-    country: 'cz'   # pouze 'cz' (SK zatím není implementováno)
+    sandbox: false  # true for testing, false for production
+    country: 'cz'   # 'cz' only (SK is not implemented yet)
     debug: false    # true = Tracy debug panel + logging
 ```
 
-### 3. Použití v aplikaci
+### 3. Use it in your application
 
-Extension poskytuje OAuth2 provider pro BankID autentizaci. Ukládání dat do databáze je na vaší aplikaci.
+The extension provides an OAuth2 provider for BankID authentication. Storing data in a database is up to your application.
 
-## Získání BankID credentials
+### All parameters
 
-### Sandbox (testování)
+```neon
+bankid:
+    # Required parameters
+    clientId: 'your-client-id'
+    clientSecret: 'your-client-secret'
+    redirectUri: 'https://your-domain.com/bankid/callback'
 
-1. Navštivte [BankID Developer Portal](https://developer.bankid.cz/)
-2. Zaregistrujte se jako vývojář
-3. Vytvořte novou aplikaci v Sandbox
-4. Získejte `client_id` a `client_secret`
-5. Nastavte `redirect_uri` (callback URL vaší aplikace)
+    # Optional parameters
+    sandbox: false              # true = sandbox, false = production
+    country: 'cz'              # only 'cz' supported (SK in the future)
+    debug: false               # true = Tracy panel + file logging
 
-### Production
+    # Custom endpoints (if you don't want the default CZ endpoints)
+    # For a future SK BankID you can use custom URLs once they are available
+    authorizeUrl: null         # null = CZ default according to sandbox mode
+    tokenUrl: null
+    userinfoUrl: null
+```
 
-1. Projděte certifikačním procesem na BankID portálu
-2. Podepište smlouvu s poskytovatelem BankID
-3. Získejte produkční credentials
-4. Přepněte `sandbox: false` v konfiguraci
+### Getting BankID credentials
 
-## Použití
+#### Sandbox (testing)
 
-### Základní OAuth2 flow
+1. Visit the [BankID Developer Portal](https://developer.bankid.cz/)
+2. Register as a developer
+3. Create a new application in the Sandbox
+4. Obtain `client_id` and `client_secret`
+5. Set `redirect_uri` (your application's callback URL)
+
+#### Production
+
+1. Go through the certification process on the BankID portal
+2. Sign a contract with the BankID provider
+3. Obtain production credentials
+4. Switch `sandbox: false` in the configuration
+
+### Sandbox vs production mode
+
+#### Sandbox (testing)
+
+```neon
+bankid:
+    sandbox: true
+    clientId: 'sandbox-client-id'
+    clientSecret: 'sandbox-secret'
+    redirectUri: 'http://localhost:8080/bankid/callback'
+```
+
+**Test users:** BankID provides test accounts in sandbox mode — see the documentation at [developer.bankid.cz](https://developer.bankid.cz/docs)
+
+#### Production
+
+```neon
+bankid:
+    sandbox: false
+    clientId: 'production-client-id'
+    clientSecret: 'production-secret'
+    redirectUri: 'https://your-domain.com/bankid/callback'
+```
+
+⚠️ **IMPORTANT:** For production you must pass certification and obtain production credentials.
+
+## Usage
+
+### Basic OAuth2 flow
 
 ```php
 <?php
@@ -87,70 +150,70 @@ class AuthPresenter extends Presenter
     }
 
     /**
-     * Krok 1: Redirect na BankID login
+     * Step 1: Redirect to BankID login
      */
     public function actionLogin(): void
     {
-        // Získej authorization URL
+        // Get the authorization URL
         $authUrl = $this->bankIdProvider->getAuthorizationUrl();
 
-        // Ulož state do session pro CSRF ochranu
+        // Store state in the session for CSRF protection
         $this->getSession('bankid')->state = $this->bankIdProvider->getState();
 
-        // Redirect na BankID
+        // Redirect to BankID
         $this->redirectUrl($authUrl);
     }
 
     /**
-     * Krok 2: Callback z BankID
+     * Step 2: Callback from BankID
      */
     public function actionCallback(?string $code = null, ?string $state = null): void
     {
         if (!$code || !$state) {
-            $this->flashMessage('Autentizace selhala - chybí parametry', 'error');
+            $this->flashMessage('Authentication failed - missing parameters', 'error');
             $this->redirect('Homepage:');
         }
 
         try {
-            // Ověř, že se uživatel vrátil z BankID
+            // Verify that the user returned from BankID
             $result = $this->bankIdProvider->authenticate($code, $state);
 
             $userData = $result['user'];
             $accessToken = $result['token'];
 
-            // Zde si můžete uložit user data do databáze nebo session
+            // Store user data in your database or session here
             $this->getSession('user')->userData = $userData;
 
-            $this->flashMessage('Úspěšně přihlášeno přes BankID', 'success');
+            $this->flashMessage('Successfully signed in via BankID', 'success');
             $this->redirect('Homepage:');
 
         } catch (VerificationFailedException $e) {
-            $this->flashMessage('Autentizace selhala: ' . $e->getMessage(), 'error');
+            $this->flashMessage('Authentication failed: ' . $e->getMessage(), 'error');
             $this->redirect('Homepage:');
         }
     }
 }
 ```
 
-### Získání user dat po autentizaci
+### Getting user data after authentication
 
-Po úspěšné autentizaci získáte user data z BankID:
+After a successful authentication you get user data from BankID:
 
 ```php
 $result = $this->bankIdProvider->authenticate($code, $state);
 $userData = $result['user'];
 $accessToken = $result['token'];
 
-// Dostupné user data:
+// Available user data:
 $userData['sub'];           // BankID user ID (unique identifier)
 $userData['email'];         // Email
-$userData['given_name'];    // Křestní jméno
-$userData['family_name'];   // Příjmení
-$userData['name'];          // Celé jméno
-$userData['birthdate'];     // Datum narození
-$userData['phone_number'];  // Telefon
+$userData['given_name'];    // First name
+$userData['family_name'];   // Last name
+$userData['name'];          // Full name
+$userData['birthdate'];     // Date of birth
+$userData['phone_number'];  // Phone
 $userData['acr'];           // Level of Assurance (loa1, loa2, loa3)
-$userData['address'];       // Adresa (object)
+$userData['address'];       // Address (object)
 
 // Access token info:
 $accessToken->getToken();         // Access token string
@@ -158,11 +221,11 @@ $accessToken->getExpires();       // Expiration timestamp
 $accessToken->getRefreshToken();  // Refresh token (if available)
 ```
 
-### Příklad: Ukládání do vlastní databáze
+### Example: storing data in your own database
 
-Extension poskytuje pouze OAuth2 autentizaci. Ukládání dat je na vaší aplikaci.
+The extension only provides OAuth2 authentication. Storing data is up to your application.
 
-**Příklad Doctrine entity:**
+**Example Doctrine entity:**
 
 ```php
 <?php
@@ -192,11 +255,11 @@ class BankIdVerification
     #[ORM\Column(type: 'datetime_immutable')]
     private \DateTimeImmutable $verifiedAt;
 
-    // ... další properties podle potřeby
+    // ... more properties as needed
 }
 ```
 
-**Příklad service pro uložení:**
+**Example service for saving:**
 
 ```php
 <?php
@@ -229,49 +292,49 @@ class BankIdService
 }
 ```
 
-## Debugging a Tracy Panel
+## Debugging and Tracy Panel
 
-Extension podporuje Tracy debug panel pro živé sledování BankID autentizace.
+The extension supports a Tracy debug panel for live monitoring of BankID authentication.
 
-### Aktivace debug režimu
+### Enabling debug mode
 
 ```neon
 bankid:
-    debug: true  # Aktivuje Tracy panel a logging
+    debug: true  # Enables the Tracy panel and logging
 ```
 
-### Tracy Debug Panel
+### Tracy debug panel
 
-Když je `debug: true`, uvidíte v Tracy baru panel **BankID** s následujícími informacemi:
+With `debug: true` you will see a **BankID** panel in the Tracy bar with the following information:
 
-1. **Základní info:**
+1. **Basic info:**
    - Mode: Sandbox / Production
    - Redirect URI
-   - Počet events
+   - Number of events
 
-2. **Authenticated User Data** (po úspěšné autentizaci):
+2. **Authenticated User Data** (after a successful authentication):
    - sub (BankID user ID)
    - email
    - name, given_name, family_name
    - birthdate
    - phone_number
    - acr (Level of Assurance)
-   - další dostupná pole
+   - other available fields
 
-3. **Authentication Flow** (živý log):
-   - Timing každého kroku (ms)
-   - Event popis (authenticate started, token retrieved, user info retrieved)
-   - Context data pro každý event
+3. **Authentication Flow** (live log):
+   - Timing of each step (ms)
+   - Event description (authenticate started, token retrieved, user info retrieved)
+   - Context data for each event
 
-### File Logging
+### File logging
 
-Kromě Tracy panelu se všechny debug info logují do souboru:
+Besides the Tracy panel, all debug info is logged to a file:
 
 ```
 log/bankid.log
 ```
 
-Formát logu:
+Log format:
 ```
 [timestamp] Message
 {
@@ -279,12 +342,12 @@ Formát logu:
 }
 ```
 
-### Příklad Tracy output
+### Example Tracy output
 
 ```
 BankID (3)
 ├─ Mode: Sandbox
-├─ Redirect URI: https://prekupnici.loc/bankid/callback
+├─ Redirect URI: https://your-domain.com/bankid/callback
 └─ Logs: 3 events
 
 Authenticated User Data:
@@ -305,81 +368,34 @@ Authentication Flow:
              sub: 1234567890, email: user@example.com, acr: loa3
 ```
 
-### Vypnutí debug režimu v production
+### Disabling debug mode in production
 
-⚠️ **DŮLEŽITÉ:** Vždy vypněte debug režim v production!
+⚠️ **IMPORTANT:** Always disable debug mode in production!
 
 ```neon
 # Production config
 bankid:
-    debug: false  # ← Vypnuto pro production
+    debug: false  # ← Disabled for production
     sandbox: false
 ```
 
-## Konfigurace - všechny parametry
+## Security Best Practices
 
-```neon
-bankid:
-    # Povinné parametry
-    clientId: 'your-client-id'
-    clientSecret: 'your-client-secret'
-    redirectUri: 'https://your-domain.com/bankid/callback'
+### 1. CSRF protection
 
-    # Volitelné parametry
-    sandbox: false              # true = sandbox, false = production
-    country: 'cz'              # pouze 'cz' podporováno (SK v budoucnu)
-    debug: false               # true = Tracy panel + file logging
-
-    # Custom endpoints (pokud nechcete použít defaultní CZ endpoints)
-    # Pro budoucí SK BankID můžete použít custom URLs, až budou dostupné
-    authorizeUrl: null         # null = použije se CZ default podle sandbox režimu
-    tokenUrl: null
-    userinfoUrl: null
-```
-
-## Sandbox vs Production režim
-
-### Sandbox (testování)
-
-```neon
-bankid:
-    sandbox: true
-    clientId: 'sandbox-client-id'
-    clientSecret: 'sandbox-secret'
-    redirectUri: 'http://localhost:8080/bankid/callback'
-```
-
-**Testovací uživatelé:** BankID poskytuje testovací účty v sandbox režimu - viz dokumentace na [developer.bankid.cz](https://developer.bankid.cz/docs)
-
-### Production
-
-```neon
-bankid:
-    sandbox: false
-    clientId: 'production-client-id'
-    clientSecret: 'production-secret'
-    redirectUri: 'https://your-domain.com/bankid/callback'
-```
-
-⚠️ **DŮLEŽITÉ:** Pro production musíte projít certifikací a získat produkční credentials.
-
-## Security best practices
-
-### 1. CSRF ochrana
-
-Extension automaticky používá state token pro CSRF ochranu:
+The extension automatically uses a state token for CSRF protection:
 
 ```php
-// Extension generuje a validuje state automaticky
+// The extension generates and validates state automatically
 $result = $this->bankIdProvider->authenticate($code, $state);
 ```
 
-### 2. Šifrování access tokenů v databázi
+### 2. Encrypting access tokens in the database
 
-Pro maximální bezpečnost doporučujeme šifrovat `access_token` a `refresh_token` v databázi:
+For maximum security we recommend encrypting `access_token` and `refresh_token` in the database:
 
 ```php
-// Použijte Doctrine encrypted column type nebo vlastní listener
+// Use a Doctrine encrypted column type or your own listener
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Column(type: 'encrypted_text')]
@@ -388,7 +404,7 @@ private string $accessToken;
 
 ### 3. HTTPS only
 
-BankID **VYŽADUJE** HTTPS pro callback URL v production režimu.
+BankID **REQUIRES** HTTPS for the callback URL in production mode.
 
 ```neon
 bankid:
@@ -397,109 +413,119 @@ bankid:
 
 ### 4. Token expiration
 
-Access tokeny mají omezenou platnost. Zkontrolujte platnost:
+Access tokens have limited validity. Check it:
 
 ```php
 if (!$verification->isTokenValid()) {
-    // Token vypršel, vyžádejte novou autentizaci
+    // Token expired, request a new authentication
 }
 ```
 
 ### 5. GDPR compliance
 
-Pravidelně odstraňujte staré verifikace:
+Remove old verifications regularly:
 
 ```php
-// Například v cron jobu
+// For example in a cron job
 $repository->deleteExpired(new \DateTimeImmutable('-90 days'));
 ```
 
 ## Level of Assurance (LOA)
 
-BankID podporuje různé úrovně ověření:
+BankID supports several levels of verification:
 
-- **LOA1** - Nízká (základní identifikace)
-- **LOA2** - Střední (ověření dokumentem)
-- **LOA3** - Vysoká (bankovní identita) ← **DEFAULT**
+- **LOA1** - Low (basic identification)
+- **LOA2** - Medium (verification by document)
+- **LOA3** - High (banking identity) ← **DEFAULT**
 
-Extension defaultně požaduje LOA3 (nejvyšší úroveň).
+The extension requests LOA3 (the highest level) by default.
 
 ```php
-// Získej LOA z user dat
+// Get LOA from user data
 $loa = $verification->getAssuranceLevel(); // 'loa3'
 ```
 
 ## Troubleshooting
 
-### Chyba: "Invalid redirect_uri"
+### Error: "Invalid redirect_uri"
 
-**Příčina:** Redirect URI v konfiguraci neodpovídá URI registrované v BankID portálu.
+**Cause:** The redirect URI in the configuration does not match the URI registered in the BankID portal.
 
-**Řešení:** Zkontrolujte, že `redirectUri` v `config.neon` přesně odpovídá URI v BankID developer portálu (včetně http/https, portu, path).
+**Solution:** Check that `redirectUri` in `config.neon` exactly matches the URI in the BankID developer portal (including http/https, port, path).
 
-### Chyba: "State token mismatch"
+### Error: "State token mismatch"
 
-**Příčina:** CSRF token neodpovídá (možný útok nebo problém se session).
+**Cause:** The CSRF token does not match (possible attack or a session problem).
 
-**Řešení:**
-- Zkontrolujte, že máte správně nakonfigurované sessions v Nette
-- Ujistěte se, že cookies fungují (session se ukládá do cookie)
-- Zkontrolujte, že uživatel nebyl přesměrován přes jiný proxy/load balancer
+**Solution:**
+- Check that sessions are configured correctly in Nette
+- Make sure cookies work (the session is stored in a cookie)
+- Check that the user was not redirected through a different proxy/load balancer
 
-### Sandbox mode nefunguje
+### Sandbox mode does not work
 
-**Příčina:** Sandbox má jiné endpoints než production.
+**Cause:** The sandbox has different endpoints than production.
 
-**Řešení:** Ujistěte se, že máte `sandbox: true` v konfiguraci:
+**Solution:** Make sure you have `sandbox: true` in the configuration:
 
 ```neon
 bankid:
-    sandbox: true  # ← DŮLEŽITÉ
+    sandbox: true  # ← IMPORTANT
 ```
 
-### Doctrine entity nejsou namapované
+### Doctrine entities are not mapped
 
-**Příčina:** Extension automaticky registruje mapping pouze pokud je Doctrine ORM dostupná.
+**Cause:** The extension registers the mapping automatically only when Doctrine ORM is available.
 
-**Řešení:** Ujistěte se, že máte nainstalovanou a nakonfigurovanou `nettrine/orm`:
+**Solution:** Make sure `nettrine/orm` is installed and configured:
 
 ```bash
 composer require nettrine/orm
 composer require nettrine/dbal
 ```
 
-### Access token vypršel
+### Access token expired
 
-**Příčina:** Access tokeny mají omezenou platnost (typicky 1 hodina).
+**Cause:** Access tokens have limited validity (typically 1 hour).
 
-**Řešení:** Použijte refresh token nebo vyžádejte novou autentizaci:
+**Solution:** Use the refresh token or request a new authentication:
 
 ```php
 if (!$verification->isTokenValid()) {
-    // Vyžádejte nové přihlášení
+    // Request a new sign-in
     $this->redirect('Auth:login');
 }
 ```
 
+## Development
+
+```bash
+# Install dependencies
+composer install
+
+# Run static analysis
+vendor/bin/phpstan analyse src
+```
+
 ## Contributing
 
-Pull requesty jsou vítány! Pro větší změny prosím nejprve otevřete issue.
+Contributions are welcome! For major changes, please open an issue first.
 
-1. Fork repozitáře
-2. Vytvořte feature branch (`git checkout -b feature/nova-funkce`)
-3. Commit změn (`git commit -m 'feat: popis'`)
-4. Push branch (`git push origin feature/nova-funkce`)
-5. Otevřete Pull Request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: description'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Podpora
+## Support
 
 - 📧 **Email:** dev@nks-hub.cz
 - 🐛 **Bug reports:** [GitHub Issues](https://github.com/nks-hub/nette-bankid/issues)
 - 📖 **BankID docs:** [developer.bankid.cz](https://developer.bankid.cz/docs)
 
-## Licence
+## License
 
-MIT License — viz [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
