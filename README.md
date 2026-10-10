@@ -6,25 +6,19 @@
 [![Nette Version](https://img.shields.io/badge/nette-%5E3.0%20%7C%7C%20%5E4.0-blue.svg)](https://nette.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Nette DI extension for BankID OAuth2/OpenID Connect authentication.
+Nette DI extension for Czech BankID sign-in over OAuth2/OpenID Connect: the user confirms their identity in their own internet banking and your application receives verified name, email, birthdate and phone.
 
-**Supported countries:** 🇨🇿 Czech Republic
-
-**PHP versions:** 8.1, 8.2, 8.3, 8.4
-
-> ℹ️ **Note:** The extension is prepared for future support of a Slovak BankID, should such a system launch. Slovakia does not have its own BankID implementation yet. The code allows configuring `country: 'sk'` with custom endpoints for possible future use.
-
-**What is BankID?** BankID is a unified sign-in solution provided by banks in the Czech Republic. It lets users verify their identity through their internet banking with the highest level of assurance (LOA3).
+Only the Czech BankID is supported. Slovakia has no BankID service; `country: 'sk'` is accepted in the configuration but needs your own endpoints.
 
 ## Features
 
-- 🏦 **BankID OAuth2/OIDC** - Identity verification via internet banking, LOA3 requested by default
-- 🛡️ **Security built in** - State token (CSRF), PKCE (S256) and nonce for replay protection
-- 🧪 **Sandbox + production** - Switch with a single `sandbox` flag
+- 🏦 **BankID OAuth2/OIDC** - Authorization URL, code exchange and userinfo call; requests LOA3 and forces a fresh login (`prompt=login`)
+- 🛡️ **State, PKCE and nonce** - Generates a state token and nonce, uses PKCE (S256), and compares both values in constant time
+- 🧪 **Sandbox and production** - The `sandbox` flag selects the endpoint set
 - 👤 **User data** - `sub`, email, names, birthdate, phone, address and level of assurance
-- 🐞 **Tracy panel** - Live authentication flow with per-step timing, plus file logging
-- 🌍 **Custom endpoints** - Override authorize/token/userinfo URLs (ready for a future SK BankID)
-- 🎯 **Nette integration** - DI extension, storage left fully to your application
+- 🐞 **Tracy panel** - Each authentication step with its time in ms, also written to `log/bankid.log`
+- 🌍 **Custom endpoints** - Override the authorize, token and userinfo URLs
+- 🎯 **Nette integration** - Registers `BankIdProvider` in the DI container; storing users is up to your application
 
 ## Requirements
 
@@ -56,13 +50,13 @@ bankid:
     clientSecret: 'your-client-secret'
     redirectUri: 'https://your-domain.com/bankid/callback'
     sandbox: false  # true for testing, false for production
-    country: 'cz'   # 'cz' only (SK is not implemented yet)
+    country: 'cz'   # 'cz' only (SK has no default endpoints)
     debug: false    # true = Tracy debug panel + logging
 ```
 
 ### 3. Use it in your application
 
-The extension provides an OAuth2 provider for BankID authentication. Storing data in a database is up to your application.
+Inject `BankIdProvider` into a presenter, see [Usage](#usage).
 
 ### All parameters
 
@@ -75,11 +69,10 @@ bankid:
 
     # Optional parameters
     sandbox: false              # true = sandbox, false = production
-    country: 'cz'              # only 'cz' supported (SK in the future)
+    country: 'cz'              # 'cz' or 'sk'; 'sk' requires the custom endpoints below
     debug: false               # true = Tracy panel + file logging
 
-    # Custom endpoints (if you don't want the default CZ endpoints)
-    # For a future SK BankID you can use custom URLs once they are available
+    # Custom endpoints instead of the default CZ ones
     authorizeUrl: null         # null = CZ default according to sandbox mode
     tokenUrl: null
     userinfoUrl: null
@@ -114,7 +107,7 @@ bankid:
     redirectUri: 'http://localhost:8080/bankid/callback'
 ```
 
-**Test users:** BankID provides test accounts in sandbox mode — see the documentation at [developer.bankid.cz](https://developer.bankid.cz/docs)
+**Test users:** BankID provides test accounts in sandbox mode, see [developer.bankid.cz](https://developer.bankid.cz/docs).
 
 #### Production
 
@@ -126,7 +119,7 @@ bankid:
     redirectUri: 'https://your-domain.com/bankid/callback'
 ```
 
-⚠️ **IMPORTANT:** For production you must pass certification and obtain production credentials.
+Production credentials are issued only after BankID certification.
 
 ## Usage
 
@@ -154,11 +147,12 @@ class AuthPresenter extends Presenter
      */
     public function actionLogin(): void
     {
-        // Get the authorization URL
         $authUrl = $this->bankIdProvider->getAuthorizationUrl();
 
-        // Store state in the session for CSRF protection
-        $this->getSession('bankid')->state = $this->bankIdProvider->getState();
+        // authenticate() compares these with the values returned by BankID
+        $session = $this->getSession('bankid');
+        $session->state = $this->bankIdProvider->getState();
+        $session->nonce = $this->bankIdProvider->getNonce();
 
         // Redirect to BankID
         $this->redirectUrl($authUrl);
@@ -175,8 +169,8 @@ class AuthPresenter extends Presenter
         }
 
         try {
-            // Verify that the user returned from BankID
-            $result = $this->bankIdProvider->authenticate($code, $state);
+            $session = $this->getSession('bankid');
+            $result = $this->bankIdProvider->authenticate($code, $state, $session->state, $session->nonce);
 
             $userData = $result['user'];
             $accessToken = $result['token'];
@@ -195,12 +189,10 @@ class AuthPresenter extends Presenter
 }
 ```
 
-### Getting user data after authentication
-
-After a successful authentication you get user data from BankID:
+### User data
 
 ```php
-$result = $this->bankIdProvider->authenticate($code, $state);
+$result = $this->bankIdProvider->authenticate($code, $state, $expectedState, $expectedNonce);
 $userData = $result['user'];
 $accessToken = $result['token'];
 
@@ -221,11 +213,11 @@ $accessToken->getExpires();       // Expiration timestamp
 $accessToken->getRefreshToken();  // Refresh token (if available)
 ```
 
-### Example: storing data in your own database
+### Example: storing users with Doctrine
 
-The extension only provides OAuth2 authentication. Storing data is up to your application.
+The extension has no storage of its own. One way to keep verified users:
 
-**Example Doctrine entity:**
+**Entity:**
 
 ```php
 <?php
@@ -259,7 +251,7 @@ class BankIdVerification
 }
 ```
 
-**Example service for saving:**
+**Service:**
 
 ```php
 <?php
@@ -292,27 +284,25 @@ class BankIdService
 }
 ```
 
-## Debugging and Tracy Panel
-
-The extension supports a Tracy debug panel for live monitoring of BankID authentication.
+## Debugging and Tracy panel
 
 ### Enabling debug mode
 
 ```neon
 bankid:
-    debug: true  # Enables the Tracy panel and logging
+    debug: true  # Tracy panel and logging
 ```
 
 ### Tracy debug panel
 
-With `debug: true` you will see a **BankID** panel in the Tracy bar with the following information:
+With `debug: true` the Tracy bar gets a **BankID** panel with:
 
 1. **Basic info:**
    - Mode: Sandbox / Production
    - Redirect URI
    - Number of events
 
-2. **Authenticated User Data** (after a successful authentication):
+2. **Authenticated user data** (after a successful authentication):
    - sub (BankID user ID)
    - email
    - name, given_name, family_name
@@ -321,14 +311,14 @@ With `debug: true` you will see a **BankID** panel in the Tracy bar with the fol
    - acr (Level of Assurance)
    - other available fields
 
-3. **Authentication Flow** (live log):
+3. **Authentication flow**:
    - Timing of each step (ms)
    - Event description (authenticate started, token retrieved, user info retrieved)
    - Context data for each event
 
 ### File logging
 
-Besides the Tracy panel, all debug info is logged to a file:
+The same events are written to:
 
 ```
 log/bankid.log
@@ -370,7 +360,7 @@ Authentication Flow:
 
 ### Disabling debug mode in production
 
-⚠️ **IMPORTANT:** Always disable debug mode in production!
+The panel and the log contain personal data from BankID, so keep `debug` off in production:
 
 ```neon
 # Production config
@@ -379,20 +369,22 @@ bankid:
     sandbox: false
 ```
 
-## Security Best Practices
+## Security
 
-### 1. CSRF protection
+### 1. State and nonce
 
-The extension automatically uses a state token for CSRF protection:
+The extension generates the state token and nonce, but your application keeps them in the session between the redirect and the callback. `authenticate()` throws `VerificationFailedException` when either does not match:
 
 ```php
-// The extension generates and validates state automatically
-$result = $this->bankIdProvider->authenticate($code, $state);
+// $expectedState and $expectedNonce come from the session saved in actionLogin()
+$result = $this->bankIdProvider->authenticate($code, $state, $expectedState, $expectedNonce);
 ```
+
+Passing `null` as the nonce skips the nonce check.
 
 ### 2. Encrypting access tokens in the database
 
-For maximum security we recommend encrypting `access_token` and `refresh_token` in the database:
+If you store `access_token` and `refresh_token`, encrypt them:
 
 ```php
 // Use a Doctrine encrypted column type or your own listener
@@ -404,7 +396,7 @@ private string $accessToken;
 
 ### 3. HTTPS only
 
-BankID **REQUIRES** HTTPS for the callback URL in production mode.
+BankID requires HTTPS for the callback URL in production.
 
 ```neon
 bankid:
@@ -413,7 +405,7 @@ bankid:
 
 ### 4. Token expiration
 
-Access tokens have limited validity. Check it:
+Access tokens expire. Check the expiry on your own entity (`isTokenValid()` is your method, not part of the extension):
 
 ```php
 if (!$verification->isTokenValid()) {
@@ -421,9 +413,9 @@ if (!$verification->isTokenValid()) {
 }
 ```
 
-### 5. GDPR compliance
+### 5. Data retention
 
-Remove old verifications regularly:
+Delete stored verifications you no longer need (again your own repository method):
 
 ```php
 // For example in a cron job
@@ -432,17 +424,14 @@ $repository->deleteExpired(new \DateTimeImmutable('-90 days'));
 
 ## Level of Assurance (LOA)
 
-BankID supports several levels of verification:
+BankID has three levels of verification:
 
 - **LOA1** - Low (basic identification)
 - **LOA2** - Medium (verification by document)
-- **LOA3** - High (banking identity) ← **DEFAULT**
-
-The extension requests LOA3 (the highest level) by default.
+- **LOA3** - High (banking identity), requested by the extension
 
 ```php
-// Get LOA from user data
-$loa = $verification->getAssuranceLevel(); // 'loa3'
+$loa = $this->bankIdProvider->getAssuranceLevel($userData); // 'loa3'
 ```
 
 ## Troubleshooting
@@ -455,11 +444,11 @@ $loa = $verification->getAssuranceLevel(); // 'loa3'
 
 ### Error: "State token mismatch"
 
-**Cause:** The CSRF token does not match (possible attack or a session problem).
+**Cause:** The state returned by BankID differs from the one in the session, either a forged request or a lost session.
 
 **Solution:**
 - Check that sessions are configured correctly in Nette
-- Make sure cookies work (the session is stored in a cookie)
+- Make sure cookies work (the session ID travels in a cookie)
 - Check that the user was not redirected through a different proxy/load balancer
 
 ### Sandbox mode does not work
@@ -470,18 +459,7 @@ $loa = $verification->getAssuranceLevel(); // 'loa3'
 
 ```neon
 bankid:
-    sandbox: true  # ← IMPORTANT
-```
-
-### Doctrine entities are not mapped
-
-**Cause:** The extension registers the mapping automatically only when Doctrine ORM is available.
-
-**Solution:** Make sure `nettrine/orm` is installed and configured:
-
-```bash
-composer require nettrine/orm
-composer require nettrine/dbal
+    sandbox: true
 ```
 
 ### Access token expired
